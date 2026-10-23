@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Prompt Vault — Quản lý Prompt Đám mây</title>
+<style>
+  :root{
+    --bg:#0a0e1a; --bg-2:#111827; --card:#161c2c; --card-2:#1f2740;
+    --border:#2a3350; --text:#e6ebf5; --muted:#8892b0;
+    --accent:#ff6b35; --accent-2:#ffb347; --cyan:#00d4ff;
+    --danger:#ff4757; --success:#2ed573;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'Inter','Segoe UI',system-ui,sans-serif;
+    background:var(--bg); color:var(--text); min-height:100vh; overflow-x:hidden;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:radial-gradient(600px circle at 10% 10%, rgba(255,107,53,.08), transparent 50%),
+               radial-gradient(500px circle at 90% 80%, rgba(0,212,255,.06), transparent 50%);
+  }
+  .app{display:grid;grid-template-columns:280px 1fr;gap:0;min-height:100vh;position:relative;z-index:1}
+  .sidebar{
+    background:linear-gradient(180deg,var(--bg-2),var(--bg));
+    border-right:1px solid var(--border); padding:20px 16px;
+    display:flex;flex-direction:column;gap:16px;
+    position:sticky;top:0;height:100vh;overflow-y:auto;
+  }
+  .logo{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:800;letter-spacing:.5px;padding:8px 4px}
+  .logo .icon{
+    width:36px;height:36px;border-radius:10px;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    display:grid;place-items:center;color:#0a0e1a;font-weight:900;
+    box-shadow:0 6px 20px rgba(255,107,53,.35);
+  }
+  .logo span b{color:var(--accent)}
+  .section-title{
+    font-size:11px;text-transform:uppercase;letter-spacing:1.5px;
+    color:var(--muted);padding:8px 6px 4px;display:flex;justify-content:space-between;align-items:center;
+  }
+  .section-title button{
+    background:transparent;border:0;color:var(--accent);cursor:pointer;font-size:16px;font-weight:700;line-height:1;
+  }
+  .section-title button:hover{color:var(--accent-2)}
+  .folder-list{display:flex;flex-direction:column;gap:4px}
+  .folder-item{
+    display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;
+    color:var(--muted);font-weight:500;font-size:14px;transition:all .15s;position:relative;
+  }
+  .folder-item:hover{background:var(--card);color:var(--text)}
+  .folder-item.active{
+    background:linear-gradient(90deg,rgba(255,107,53,.18),transparent);
+    color:var(--text);border-left:3px solid var(--accent);padding-left:9px;
+  }
+  .folder-item .count{
+    margin-left:auto;background:var(--card-2);padding:2px 8px;border-radius:10px;font-size:11px;color:var(--muted);
+  }
+  .folder-item.active .count{background:rgba(255,107,53,.25);color:var(--accent-2)}
+  .folder-item .del{display:none;margin-left:4px;color:var(--danger);font-weight:700}
+  .folder-item:hover .del{display:inline}
+  .folder-item:hover .count{display:none}
+  .io-buttons{margin-top:auto;display:flex;flex-direction:column;gap:8px;padding-top:12px;border-top:1px solid var(--border)}
+  .btn{
+    padding:10px 14px;border-radius:8px;border:0;cursor:pointer;font-weight:600;font-size:13px;
+    display:flex;align-items:center;gap:8px;justify-content:center;transition:all .15s;
+  }
+  .btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#0a0e1a}
+  .btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(255,107,53,.3)}
+  .btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none}
+  .btn-ghost{background:var(--card);color:var(--text);border:1px solid var(--border)}
+  .btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+  .main{padding:24px 32px;overflow-y:auto}
+  .topbar{display:flex;gap:12px;align-items:center;margin-bottom:24px;flex-wrap:wrap}
+  .search{flex:1;min-width:220px;position:relative}
+  .search input{
+    width:100%;padding:12px 14px 12px 40px;background:var(--card);border:1px solid var(--border);
+    color:var(--text);border-radius:10px;font-size:14px;outline:none;transition:border-color .15s;
+  }
+  .search input:focus{border-color:var(--accent)}
+  .search::before{content:"🔍";position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:14px;opacity:.7}
+  .tag-filter{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .tag-chip{
+    padding:6px 12px;background:var(--card);border:1px solid var(--border);
+    border-radius:20px;font-size:12px;color:var(--muted);cursor:pointer;transition:all .15s;
+  }
+  .tag-chip:hover{color:var(--text);border-color:var(--accent)}
+  .tag-chip.active{background:var(--accent);color:#0a0e1a;border-color:var(--accent);font-weight:600}
+  .prompt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+  .prompt-card{
+    background:var(--card);border:1px solid var(--border);border-radius:12px;
+    padding:18px;display:flex;flex-direction:column;gap:10px;transition:all .2s;position:relative;overflow:hidden;
+  }
+  .prompt-card::before{
+    content:"";position:absolute;top:0;left:0;right:0;height:3px;
+    background:linear-gradient(90deg,var(--accent),var(--cyan));
+    transform:scaleX(0);transform-origin:left;transition:transform .3s;
+  }
+  .prompt-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 10px 30px rgba(0,0,0,.3)}
+  .prompt-card:hover::before{transform:scaleX(1)}
+  .prompt-title{font-size:16px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}
+  .prompt-title .folder-badge{font-size:10px;background:var(--card-2);color:var(--cyan);padding:2px 8px;border-radius:10px;font-weight:500}
+  .prompt-content{
+    font-size:13px;color:var(--muted);line-height:1.6;max-height:120px;overflow:hidden;position:relative;
+    background:var(--bg-2);padding:10px 12px;border-radius:8px;border-left:2px solid var(--accent);
+    white-space:pre-wrap;word-break:break-word;
+  }
+  .prompt-content a{color:var(--cyan);text-decoration:underline}
+  .prompt-content a:hover{color:var(--accent-2)}
+  .prompt-tags{display:flex;gap:6px;flex-wrap:wrap}
+  .prompt-tag{font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(0,212,255,.1);color:var(--cyan);border:1px solid rgba(0,212,255,.25)}
+  .prompt-actions{display:flex;gap:6px;margin-top:4px}
+  .icon-btn{
+    flex:1;padding:7px;border-radius:6px;border:1px solid var(--border);
+    background:transparent;color:var(--muted);cursor:pointer;font-size:12px;transition:all .15s;font-weight:500;
+  }
+  .icon-btn:hover{background:var(--card-2);color:var(--text);border-color:var(--accent)}
+  .icon-btn.copy:hover{color:var(--success);border-color:var(--success)}
+  .icon-btn.del:hover{color:var(--danger);border-color:var(--danger)}
+  .empty{text-align:center;padding:60px 20px;color:var(--muted)}
+  .empty .big{font-size:48px;margin-bottom:12px;opacity:.3}
+  .modal-backdrop{
+    position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);
+    display:none;align-items:center;justify-content:center;z-index:100;padding:20px;
+  }
+  .modal-backdrop.show{display:flex}
+  .modal{
+    background:var(--bg-2);border:1px solid var(--border);border-radius:14px;
+    width:100%;max-width:560px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.5);max-height:90vh;overflow-y:auto;
+  }
+  .modal h2{margin-bottom:18px;color:var(--text);font-size:20px;display:flex;align-items:center;gap:10px}
+  .modal h2::before{content:"";width:4px;height:22px;background:var(--accent);border-radius:2px}
+  .form-group{margin-bottom:14px}
+  .form-group label{display:block;margin-bottom:6px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:600}
+  .form-group input, .form-group textarea, .form-group select{
+    width:100%;padding:10px 12px;background:var(--card);border:1px solid var(--border);
+    border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;outline:none;transition:border-color .15s;
+  }
+  .form-group input:focus, .form-group textarea:focus, .form-group select:focus{border-color:var(--accent)}
+  .form-group textarea{min-height:140px;resize:vertical;line-height:1.6}
+  .form-group .hint{font-size:11px;color:var(--muted);margin-top:4px}
+  .modal-actions{display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
+  .toast{
+    position:fixed;bottom:24px;right:24px;background:var(--card);border:1px solid var(--success);
+    color:var(--success);padding:12px 18px;border-radius:10px;font-weight:600;font-size:13px;z-index:200;
+    transform:translateY(100px);opacity:0;transition:all .3s;box-shadow:0 10px 30px rgba(0,0,0,.4);
+  }
+  .toast.show{transform:translateY(0);opacity:1}
+  .toast.error{border-color:var(--danger);color:var(--danger)}
+  .login-overlay{
+    position:fixed;inset:0;background:var(--bg);z-index:1000;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .login-box{
+    background:var(--card);border:1px solid var(--border);border-radius:16px;
+    padding:40px;width:100%;max-width:420px;text-align:center;
+    box-shadow:0 20px 60px rgba(0,0,0,0.5);animation:fadeIn 0.3s ease-out;
+  }
+  @keyframes fadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spinner{
+    width:20px;height:20px;border:2px solid rgba(255,255,255,.3);
+    border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;
+    display:inline-block;vertical-align:middle;margin-right:8px;
+  }
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+  @media (max-width:768px){
+    .app{grid-template-columns:1fr}
+    .sidebar{position:relative;height:auto}
+    .main{padding:16px}
+    .login-box{padding:24px;margin:16px}
+  }
+</style>
+</head>
+<body>
+
+<div id="loginOverlay" class="login-overlay">
+  <div class="login-box">
+    <div class="logo" style="justify-content:center;margin-bottom:24px;">
+      <div class="icon">⚡</div>
+      <span>Prompt<b>Vault</b></span>
+    </div>
+    <h2 style="margin-bottom:12px;">Đồng bộ hóa đám mây</h2>
+    <p style="color:var(--muted);margin-bottom:32px;text-align:center;line-height:1.6;">
+      Đăng nhập bằng Google để lưu trữ và đồng bộ prompt của bạn trên mọi thiết bị, không lo mất dữ liệu khi đổi trình duyệt.
+    </p>
+    <button id="loginBtn" class="btn btn-primary" style="width:100%;justify-content:center;padding:14px;font-size:15px;">
+      <svg width="20" height="20" viewBox="0 0 24 24" style="margin-right:8px;"><path fill="currentColor" d="M21.35 11.1h-9.17v2.73h6.51c-.33 3.81-3.5 5.44-6.5 5.44C8.36 19.27 5 16.25 5 12c0-4.1 3.2-7.27 7.2-7.27 3.09 0 4.9 1.97 4.9 1.97L19 4.72S16.56 2 12.1 2C6.42 2 2.03 6.8 2.03 12c0 5.05 4.13 10 10.22 10 5.35 0 9.25-3.67 9.25-9.09 0-1.15-.15-1.81-.15-1.81Z"/></svg>
+      <span id="loginBtnText">Đăng nhập bằng Google</span>
+    </button>
+    <p id="loginStatus" style="margin-top:16px;font-size:11px;color:var(--danger);display:none;line-height:1.5;"></p>
+    <p id="loginHint" style="margin-top:12px;font-size:10px;color:var(--muted);">
+      💡 Mẹo: Dùng Chrome và truy cập qua localhost để ổn định nhất
+    </p>
+  </div>
+</div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="icon">⚡</div>
+      <span>Prompt<b>Vault</b></span>
+    </div>
+    <div>
+      <div class="section-title">
+        <span>Thư mục</span>
+        <button onclick="window.openFolderModal()" title="Thêm thư mục">+</button>
+      </div>
+      <div class="folder-list" id="folderList"></div>
+    </div>
+    <div class="io-buttons">
+      <button class="btn btn-primary" onclick="window.openPromptModal()">＋ Prompt mới</button>
+      <button class="btn btn-ghost" onclick="window.exportData()">⬇ Xuất JSON</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('importFile').click()">⬆ Nhập JSON</button>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="window.importData(event)"/>
+    </div>
+    <div id="userProfile" style="display:none; margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
+      <div id="syncStatus" style="font-size:11px;color:var(--success);display:flex;align-items:center;gap:4px;margin-bottom:10px;">
+        <span style="width:6px;height:6px;border-radius:50%;background:var(--success);display:inline-block;"></span>
+        Đã đồng bộ đám mây
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        <img id="userAvatar" src="" style="width:32px;height:32px;border-radius:50%;border:2px solid var(--accent);object-fit:cover;"/>
+        <div style="flex:1;overflow:hidden;">
+          <div id="userName" style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+          <div id="userEmail" style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+        </div>
+      </div>
+      <button class="btn btn-ghost" onclick="window.logout()" style="width:100%;justify-content:center;font-size:12px;border-color:var(--danger);color:var(--danger);">
+        🚪 Đăng xuất
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="search">
+        <input type="text" id="searchInput" placeholder="Tìm theo tên, nội dung, tag..." oninput="window.render()"/>
+      </div>
+    </div>
+    <div class="tag-filter" id="tagFilter"></div>
+    <div style="height:16px"></div>
+    <div class="prompt-grid" id="promptGrid"></div>
+  </main>
+</div>
+
+<div class="modal-backdrop" id="promptModal">
+  <div class="modal">
+    <h2 id="promptModalTitle">Thêm Prompt</h2>
+    <div class="form-group">
+      <label>Tên Prompt</label>
+      <input type="text" id="pName" placeholder="VD: Tóm tắt bài viết"/>
+    </div>
+    <div class="form-group">
+      <label>Thư mục</label>
+      <select id="pFolder"></select>
+    </div>
+    <div class="form-group">
+      <label>Nội dung</label>
+      <textarea id="pContent" placeholder="Nhập nội dung prompt. Link sẽ tự động nhận diện (https://...)"></textarea>
+      <div class="hint">Đường link http/https sẽ được chuyển thành liên kết có thể click.</div>
+    </div>
+    <div class="form-group">
+      <label>Tags</label>
+      <input type="text" id="pTags" placeholder="coding, writing, gpt4 (cách nhau bởi dấu phẩy)"/>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="window.closeModal('promptModal')">Hủy</button>
+      <button class="btn btn-primary" onclick="window.savePrompt()">Lưu</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="folderModal">
+  <div class="modal">
+    <h2>Thêm Thư mục</h2>
+    <div class="form-group">
+      <label>Tên thư mục</label>
+      <input type="text" id="fName" placeholder="VD: Marketing, Code, Viết lách..."/>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="window.closeModal('folderModal')">Hủy</button>
+      <button class="btn btn-primary" onclick="window.saveFolder()">Tạo</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { 
+    getAuth, 
+    signInWithPopup, 
+    signInWithRedirect, 
+    getRedirectResult,
+    GoogleAuthProvider, 
+    signOut, 
+    onAuthStateChanged 
+  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+  import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBdFdODyICUzlSvtrjtHdKpIGpS6Y06atk",
+    authDomain: "newprom-88603.firebaseapp.com",
+    projectId: "newprom-88603",
+    storageBucket: "newprom-88603.appspot.com",
+    messagingSenderId: "846214369370",
+    appId: "1:846214369370:web:c8014d2581f7bd406f4863",
+    measurementId: "G-TD6EPV28YX"
+  };
+
+  let auth, db, provider;
+  let firebaseInitialized = false;
+  let isProcessingRedirect = false;
+  
+  try {
+    const app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    provider = new GoogleAuthProvider();
+    firebaseInitialized = true;
+    console.log("✅ Firebase khởi tạo thành công!");
+  } catch (e) {
+    console.error("❌ Lỗi khởi tạo Firebase:", e);
+    showLoginError('Lỗi Firebase: ' + e.message);
+  }
+
+  const STORAGE_KEY = 'promptVault_v2';
+  let state = { folders: [], prompts: [], activeFolder: 'all', activeTag: null, editingId: null, user: null };
+  let unsubscribeFirestore = null;
+
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function escapeHtml(s) { return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  function escapeAttr(s) { return escapeHtml(s).replace(/'/g, "\\'"); }
+  
+  function linkify(text) {
+    return text.replace(/(https?:\/\/[^\s<]+)/g, (m) => {
+      const clean = m.replace(/&amp;/g, '&');
+      return `<a href="${clean}" target="_blank" rel="noopener noreferrer">${clean}</a>`;
+    });
+  }
+
+  function toast(msg, type = 'success') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (type === 'error' ? ' error' : '');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  function showLoginError(msg) {
+    const el = document.getElementById('loginStatus');
+    el.style.display = 'block';
+    el.textContent = msg;
+  }
+
+  function setLoading(loading) {
+    const btn = document.getElementById('loginBtn');
+    const btnText = document.getElementById('loginBtnText');
+    if (loading) {
+      btn.disabled = true;
+      btnText.innerHTML = '<span class="spinner"></span>Đang xử lý...';
+    } else {
+      btn.disabled = false;
+      btnText.textContent = 'Đăng nhập bằng Google';
+    }
+  }
+
+  // ✅ XỬ LÝ KẾT QUẢ REDIRECT KHI TRANG LOAD
+  async function handleRedirectOnLoad() {
+    if (!firebaseInitialized) return;
+    
+    try {
+      console.log("🔄 [Redirect] Đang kiểm tra kết quả redirect...");
+      const result = await getRedirectResult(auth);
+      
+      if (result) {
+        console.log("✅ [Redirect] Đăng nhập thành công:", result.user.email);
+        toast('Đăng nhập thành công!');
+        // onAuthStateChanged sẽ tự động xử lý UI
+      } else {
+        console.log("ℹ️ [Redirect] Không có kết quả redirect (người dùng chưa đăng nhập hoặc đã hủy)");
+      }
+    } catch (error) {
+      console.error("❌ [Redirect] Lỗi:", error);
+      showLoginError('Lỗi đăng nhập: ' + error.message);
+    } finally {
+      isProcessingRedirect = false;
+    }
+  }
+
+  // ✅ HÀM ĐĂNG NHẬP - TỰ ĐỘNG CHỌN PHƯƠNG THỨC TỐI ƯU
+  window.loginWithGoogle = async () => {
+    if (!firebaseInitialized) {
+      toast('Firebase chưa khởi tạo. Vui lòng F5 lại trang.', 'error');
+      return;
+    }
+    
+    if (isProcessingRedirect) {
+      toast('Đang xử lý đăng nhập, vui lòng đợi...', 'error');
+      return;
+    }
+
+    setLoading(true);
+    showLoginError(''); // Xóa lỗi cũ
+
+    try {
+      console.log("🔐 [Login] Thử đăng nhập bằng Popup...");
+      
+      // Thử popup trước (ưu tiên vì UX tốt hơn)
+      const result = await signInWithPopup(auth, provider);
+      console.log("✅ [Login] Popup thành công:", result.user.email);
+      toast('Đăng nhập thành công!');
+      
+    } catch (popupError) {
+      console.warn("⚠️ [Login] Popup thất bại:", popupError.code);
+      
+      // Nếu popup bị chặn, tự động chuyển sang redirect
+      if (popupError.code === 'auth/popup-blocked' || 
+          popupError.code === 'auth/cancelled-popup-request' ||
+          popupError.code === 'auth/popup-closed-by-user') {
+        
+        console.log("🔄 [Login] Chuyển sang phương thức Redirect...");
+        toast('Chuyển sang chế độ redirect...', 'success');
+        
+        isProcessingRedirect = true;
+        await signInWithRedirect(auth, provider);
+        // Code sau dòng này sẽ không chạy vì trình duyệt redirect đi
+        
+      } else {
+        // Các lỗi khác
+        console.error("❌ [Login] Lỗi:", popupError);
+        let errorMsg = popupError.message;
+        if (popupError.code === 'auth/unauthorized-domain') {
+          errorMsg = 'Tên miền chưa được ủy quyền. Hãy thêm domain vào Firebase Console > Authentication > Settings > Authorized domains';
+        }
+        showLoginError('Lỗi: ' + errorMsg);
+        toast('Lỗi đăng nhập', 'error');
+      }
+    } finally {
+      // Chỉ tắt loading nếu không phải redirect (vì redirect sẽ reload trang)
+      if (!isProcessingRedirect) {
+        setLoading(false);
+      }
+    }
+  };
+
+  // Gán event listener cho nút login
+  document.getElementById('loginBtn').addEventListener('click', window.loginWithGoogle);
+
+  window.logout = () => {
+    if(confirm("Bạn có chắc muốn đăng xuất?")) {
+      signOut(auth).then(() => {
+        toast("Đã đăng xuất");
+        console.log(" [Logout] Đã đăng xuất");
+      }).catch(err => {
+        console.error("❌ [Logout] Lỗi:", err);
+        toast("Lỗi: " + err.message, 'error');
+      });
+    }
+  };
+
+  function saveToFirestore() {
+    if (!state.user) return;
+    const userRef = doc(db, 'users', state.user.uid);
+    setDoc(userRef, { folders: state.folders, prompts: state.prompts, lastUpdated: Date.now() }, { merge: true })
+      .catch(err => { console.error(" [Save] Lỗi:", err); toast("Lỗi lưu đám mây!", 'error'); });
+  }
+
+  function setupFirestoreSync(user) {
+    if (unsubscribeFirestore) unsubscribeFirestore();
+    const userRef = doc(db, 'users', user.uid);
+    console.log("📡 [Sync] Bắt đầu đồng bộ cho user:", user.email);
+    
+    unsubscribeFirestore = onSnapshot(userRef, (docSnap) => {
+      const statusEl = document.getElementById('syncStatus');
+      statusEl.innerHTML = `<span style="width:6px;height:6px;border-radius:50%;background:var(--success);display:inline-block;"></span> Đã đồng bộ`;
+      statusEl.style.color = 'var(--success)';
+      
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        state.folders = data.folders || [];
+        state.prompts = data.prompts || [];
+        console.log("💾 [Sync] Đã tải:", state.prompts.length, "prompts");
+      } else {
+        console.log("📝 [Sync] Chưa có dữ liệu, tạo mặc định");
+        state.folders = [{ id: uid(), name: 'Tổng hợp' }, { id: uid(), name: 'Code' }, { id: uid(), name: 'Viết lách' }];
+        state.prompts = [];
+        saveToFirestore();
+      }
+      window.render();
+    }, (error) => {
+      console.error("❌ [Sync] Lỗi:", error);
+      toast("Lỗi đồng bộ: " + error.message, 'error');
+    });
+  }
+
+  onAuthStateChanged(auth, (user) => {
+    console.log("👤 [Auth] Trạng thái thay đổi:", user ? user.email : 'null');
+    
+    if (user) {
+      state.user = user;
+      document.getElementById('loginOverlay').style.display = 'none';
+      document.getElementById('userProfile').style.display = 'block';
+      document.getElementById('userAvatar').src = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'U')}&background=ff6b35&color=fff`;
+      document.getElementById('userName').textContent = user.displayName || 'Người dùng';
+      document.getElementById('userEmail').textContent = user.email;
+      setupFirestoreSync(user);
+    } else {
+      state.user = null;
+      document.getElementById('loginOverlay').style.display = 'flex';
+      document.getElementById('userProfile').style.display = 'none';
+      if (unsubscribeFirestore) { unsubscribeFirestore(); unsubscribeFirestore = null; }
+      loadLocal();
+      window.render();
+    }
+  });
+
+  function loadLocal() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const d = JSON.parse(raw);
+        state.folders = d.folders || [];
+        state.prompts = d.prompts || [];
+      }
+      if (state.folders.length === 0) {
+        state.folders = [{ id: uid(), name: 'Tổng hợp' }, { id: uid(), name: 'Code' }, { id: uid(), name: 'Viết lách' }];
+        saveLocal();
+      }
+    } catch (e) { console.error(e); }
+  }
+
+  function saveLocal() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ folders: state.folders, prompts: state.prompts }));
+  }
+
+  function save() {
+    saveLocal();
+    if (state.user) saveToFirestore();
+  }
+
+  window.render = () => {
+    renderFolders(); renderTags(); renderPrompts();
+  }
+
+  function renderFolders() {
+    const list = document.getElementById('folderList');
+    const allCount = state.prompts.length;
+    let html = `<div class="folder-item ${state.activeFolder === 'all' ? 'active' : ''}" onclick="window.selectFolder('all')">
+      <span></span><span>Tất cả</span><span class="count">${allCount}</span></div>`;
+    state.folders.forEach(f => {
+      const c = state.prompts.filter(p => p.folderId === f.id).length;
+      html += `<div class="folder-item ${state.activeFolder === f.id ? 'active' : ''}" onclick="window.selectFolder('${f.id}')">
+        <span>📁</span><span>${escapeHtml(f.name)}</span><span class="count">${c}</span>
+        <span class="del" onclick="event.stopPropagation();window.deleteFolder('${f.id}')" title="Xóa">✕</span></div>`;
+    });
+    list.innerHTML = html;
+  }
+
+  function renderTags() {
+    const allTags = new Set();
+    state.prompts.forEach(p => (p.tags || []).forEach(t => allTags.add(t)));
+    const container = document.getElementById('tagFilter');
+    if (allTags.size === 0) { container.innerHTML = ''; return; }
+    let html = `<span class="tag-chip ${state.activeTag === null ? 'active' : ''}" onclick="window.filterTag(null)">Tất cả</span>`;
+    [...allTags].sort().forEach(t => {
+      html += `<span class="tag-chip ${state.activeTag === t ? 'active' : ''}" onclick="window.filterTag('${escapeAttr(t)}')">#${escapeHtml(t)}</span>`;
+    });
+    container.innerHTML = html;
+  }
+
+  function renderPrompts() {
+    const q = document.getElementById('searchInput').value.trim().toLowerCase();
+    let list = state.prompts.slice();
+    if (state.activeFolder !== 'all') list = list.filter(p => p.folderId === state.activeFolder);
+    if (state.activeTag) list = list.filter(p => (p.tags || []).includes(state.activeTag));
+    if (q) list = list.filter(p => p.name.toLowerCase().includes(q) || p.content.toLowerCase().includes(q) || (p.tags || []).some(t => t.toLowerCase().includes(q)));
+    list.sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt));
+
+    const grid = document.getElementById('promptGrid');
+    if (list.length === 0) {
+      grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="big">📭</div><div>Chưa có prompt nào${q ? ' phù hợp' : ''}.</div><div style="font-size:13px;margin-top:6px">Bấm "＋ Prompt mới" để bắt đầu.</div></div>`;
+      return;
+    }
+    grid.innerHTML = list.map(p => {
+      const folder = state.folders.find(f => f.id === p.folderId);
+      const contentHtml = linkify(escapeHtml(p.content));
+      return `<div class="prompt-card">
+        <div class="prompt-title">${escapeHtml(p.name)}${folder ? `<span class="folder-badge">${escapeHtml(folder.name)}</span>` : ''}</div>
+        <div class="prompt-content">${contentHtml}</div>
+        <div class="prompt-tags">${(p.tags || []).map(t => `<span class="prompt-tag">#${escapeHtml(t)}</span>`).join('')}</div>
+        <div class="prompt-actions">
+          <button class="icon-btn copy" onclick="window.copyPrompt('${p.id}')">📋 Copy</button>
+          <button class="icon-btn" onclick="window.editPrompt('${p.id}')">✏️ Sửa</button>
+          <button class="icon-btn del" onclick="window.deletePrompt('${p.id}')">🗑 Xóa</button>
+        </div></div>`;
+    }).join('');
+  }
+
+  window.selectFolder = (id) => { state.activeFolder = id; state.activeTag = null; window.render(); }
+  window.filterTag = (t) => { state.activeTag = t; window.render(); }
+
+  window.openFolderModal = () => {
+    document.getElementById('fName').value = '';
+    window.openModal('folderModal');
+    setTimeout(() => document.getElementById('fName').focus(), 50);
+  }
+  window.saveFolder = () => {
+    const name = document.getElementById('fName').value.trim();
+    if (!name) { toast('Nhập tên thư mục', 'error'); return; }
+    state.folders.push({ id: uid(), name });
+    save(); window.render(); window.closeModal('folderModal');
+    toast('Đã tạo thư mục');
+  }
+  window.deleteFolder = (id) => {
+    const count = state.prompts.filter(p => p.folderId === id).length;
+    if (!confirm(`Xóa thư mục này?${count ? ` (${count} prompt sẽ chuyển về "không thư mục")` : ''}`)) return;
+    state.folders = state.folders.filter(f => f.id !== id);
+    state.prompts.forEach(p => { if (p.folderId === id) p.folderId = ''; });
+    if (state.activeFolder === id) state.activeFolder = 'all';
+    save(); window.render();
+  }
+
+  window.openPromptModal = () => {
+    state.editingId = null;
+    document.getElementById('promptModalTitle').textContent = 'Thêm Prompt';
+    document.getElementById('pName').value = '';
+    document.getElementById('pContent').value = '';
+    document.getElementById('pTags').value = '';
+    const sel = document.getElementById('pFolder');
+    sel.innerHTML = `<option value="">-- Không chọn --</option>` +
+      state.folders.map(f => `<option value="${f.id}" ${f.id === state.activeFolder && state.activeFolder !== 'all' ? 'selected' : ''}>${escapeHtml(f.name)}</option>`).join('');
+    window.openModal('promptModal');
+    setTimeout(() => document.getElementById('pName').focus(), 50);
+  }
+  window.editPrompt = (id) => {
+    const p = state.prompts.find(x => x.id === id); if (!p) return;
+    state.editingId = id;
+    document.getElementById('promptModalTitle').textContent = 'Sửa Prompt';
+    document.getElementById('pName').value = p.name;
+    document.getElementById('pContent').value = p.content;
+    document.getElementById('pTags').value = (p.tags || []).join(', ');
+    const sel = document.getElementById('pFolder');
+    sel.innerHTML = `<option value="">-- Không chọn --</option>` +
+      state.folders.map(f => `<option value="${f.id}" ${f.id === p.folderId ? 'selected' : ''}>${escapeHtml(f.name)}</option>`).join('');
+    window.openModal('promptModal');
+  }
+  window.savePrompt = () => {
+    const name = document.getElementById('pName').value.trim();
+    const content = document.getElementById('pContent').value;
+    const folderId = document.getElementById('pFolder').value;
+    const tags = document.getElementById('pTags').value.split(',').map(t => t.trim()).filter(Boolean);
+    if (!name) { toast('Nhập tên prompt', 'error'); return; }
+    if (!content.trim()) { toast('Nhập nội dung prompt', 'error'); return; }
+    if (state.editingId) {
+      const p = state.prompts.find(x => x.id === state.editingId);
+      Object.assign(p, { name, content, folderId, tags, updatedAt: Date.now() });
+      toast('Đã cập nhật');
+    } else {
+      state.prompts.push({ id: uid(), name, content, folderId, tags, createdAt: Date.now(), updatedAt: Date.now() });
+      toast('Đã thêm prompt');
+    }
+    save(); window.render(); window.closeModal('promptModal');
+  }
+  window.deletePrompt = (id) => {
+    if (!confirm('Xóa prompt này?')) return;
+    state.prompts = state.prompts.filter(p => p.id !== id);
+    save(); window.render(); toast('Đã xóa');
+  }
+  window.copyPrompt = (id) => {
+    const p = state.prompts.find(x => x.id === id); if (!p) return;
+    navigator.clipboard.writeText(p.content).then(() => toast('Đã copy nội dung'));
+  }
+
+  window.openModal = (id) => { document.getElementById(id).classList.add('show'); }
+  window.closeModal = (id) => { document.getElementById(id).classList.remove('show'); }
+  
+  document.querySelectorAll('.modal-backdrop').forEach(m => {
+    m.addEventListener('click', e => { if (e.target === m) window.closeModal(m.id); });
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') document.querySelectorAll('.modal-backdrop.show').forEach(m => window.closeModal(m.id));
+  });
+
+  window.exportData = () => {
+    const data = { version: 2, exportedAt: new Date().toISOString(), folders: state.folders, prompts: state.prompts };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `prompt-vault-${new Date().toISOString().slice(0,10)}.json`;
+    a.click(); URL.revokeObjectURL(url);
+    toast('Đã xuất file JSON');
+  }
+  window.importData = (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const d = JSON.parse(ev.target.result);
+        if (!d.folders || !d.prompts) throw new Error('Format không hợp lệ');
+        if (!confirm(`Nhập ${d.folders.length} thư mục và ${d.prompts.length} prompt?\n(Dữ liệu hiện tại sẽ bị ghi đè)`)) return;
+        state.folders = d.folders; state.prompts = d.prompts;
+        state.activeFolder = 'all'; state.activeTag = null;
+        save(); window.render();
+        toast('Đã nhập dữ liệu thành công');
+      } catch (err) { toast('Lỗi: ' + err.message, 'error'); }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }
+
+  // Khởi động: xử lý redirect result nếu có
+  handleRedirectOnLoad();
+  console.log(" [App] Ứng dụng đã sẵn sàng");
+</script>
+</body>
+</html>
